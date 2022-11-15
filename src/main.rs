@@ -7,6 +7,10 @@ use bevy::{
     time::FixedTimestep,
 };
 
+mod wall;
+
+use wall::*;
+
 // Defines the amount of time that should elapse between each physics step.
 const TIME_STEP: f32 = 1.0 / 60.0;
 
@@ -19,7 +23,7 @@ const PADDLE_SPEED: f32 = 500.0;
 const PADDLE_PADDING: f32 = 10.0;
 
 // We set the z-value of the ball to 1 so it renders on top in the case of overlapping sprites.
-const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
+const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 0.0);
 const BALL_SIZE: f32 = 15.0;
 const BALL_SPEED: f32 = 400.0;
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
@@ -58,19 +62,23 @@ fn main() {
             brightness: 1.0 / 5.0f32,
         })
         .add_plugins(DefaultPlugins)
+        .add_plugin(MaterialPlugin::<LineMaterial>::default())
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(ClearColor(BACKGROUND_COLOR))
         .add_startup_system(setup)
+        .add_startup_system(wall::wall_setup)
         .add_event::<CollisionEvent>()
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
                 .with_system(camera_movement)
-                //.with_system(animate_light_direction)
+                // .with_system(animate_light_direction)
         
-                // .with_system(check_for_collisions)
-                // .with_system(move_paddle.before(check_for_collisions))
-                // .with_system(apply_velocity.before(check_for_collisions))
+                .with_system(check_for_collisions)
+                // .with_system(move_paddle)
+                .with_system(move_paddle.before(check_for_collisions))
+                // .with_system(apply_velocity)
+                .with_system(apply_velocity.before(check_for_collisions))
                 // .with_system(play_collision_sound.after(check_for_collisions)),
         )
         .add_system(update_scoreboard)
@@ -98,78 +106,6 @@ struct Brick;
 
 #[derive(Resource)]
 struct CollisionSound(Handle<AudioSource>);
-
-// This bundle is a collection of the components that define a "wall" in our game
-#[derive(Bundle)]
-struct WallBundle {
-    // You can nest bundles inside of other bundles like this
-    // Allowing you to compose their functionality
-    sprite_bundle: SpriteBundle,
-    collider: Collider,
-}
-
-/// Which side of the arena is this wall located on?
-enum WallLocation {
-    Left,
-    Right,
-    Bottom,
-    Top,
-}
-
-impl WallLocation {
-    fn position(&self) -> Vec2 {
-        match self {
-            WallLocation::Left => Vec2::new(LEFT_WALL, 0.),
-            WallLocation::Right => Vec2::new(RIGHT_WALL, 0.),
-            WallLocation::Bottom => Vec2::new(0., BOTTOM_WALL),
-            WallLocation::Top => Vec2::new(0., TOP_WALL),
-        }
-    }
-
-    fn size(&self) -> Vec2 {
-        let arena_height = TOP_WALL - BOTTOM_WALL;
-        let arena_width = RIGHT_WALL - LEFT_WALL;
-        // Make sure we haven't messed up our constants
-        assert!(arena_height > 0.0);
-        assert!(arena_width > 0.0);
-
-        match self {
-            WallLocation::Left | WallLocation::Right => {
-                Vec2::new(WALL_THICKNESS, arena_height + WALL_THICKNESS)
-            }
-            WallLocation::Bottom | WallLocation::Top => {
-                Vec2::new(arena_width + WALL_THICKNESS, WALL_THICKNESS)
-            }
-        }
-    }
-}
-
-impl WallBundle {
-    // This "builder method" allows us to reuse logic across our wall entities,
-    // making our code easier to read and less prone to bugs when we change the logic
-    fn new(location: WallLocation) -> WallBundle {
-        WallBundle {
-            sprite_bundle: SpriteBundle {
-                transform: Transform {
-                    // We need to convert our Vec2 into a Vec3, by giving it a z-coordinate
-                    // This is used to determine the order of our sprites
-                    translation: location.position().extend(0.0),
-                    // The z-scale of 2D objects must always be 1.0,
-                    // or their ordering will be affected in surprising ways.
-                    // See https://github.com/bevyengine/bevy/issues/4149
-                    scale: location.size().extend(1.0),
-                    ..default()
-                },
-                sprite: Sprite {
-                    color: WALL_COLOR,
-                    ..default()
-                },
-                ..default()
-            },
-            collider: Collider,
-        }
-    }
-}
 
 // This resource tracks the game's score
 #[derive(Resource)]
@@ -310,10 +246,10 @@ fn setup(
     );
 
     // Walls
-    commands.spawn(WallBundle::new(WallLocation::Left));
-    commands.spawn(WallBundle::new(WallLocation::Right));
-    commands.spawn(WallBundle::new(WallLocation::Bottom));
-    commands.spawn(WallBundle::new(WallLocation::Top));
+    // commands.spawn(WallBundle::new(&mut meshes, &mut materials, WallLocation::Right));
+    // commands.spawn(WallBundle::new(&mut meshes, &mut materials, WallLocation::Left));
+    // commands.spawn(WallBundle::new(&mut meshes, &mut materials, WallLocation::Bottom));
+    // commands.spawn(WallBundle::new(&mut meshes, &mut materials, WallLocation::Top));
 
     // Bricks
     // Negative scales result in flipped sprites / meshes,
@@ -450,7 +386,7 @@ fn check_for_collisions(
             ball_transform.translation,
             ball_size,
             transform.translation,
-            transform.scale.truncate(),
+            transform.,
         );
         if let Some(collision) = collision {
             // Sends a collision event so that other systems can react to the collision
