@@ -32,10 +32,10 @@ const RIGHT_WALL: f32 = 450.;
 const BOTTOM_WALL: f32 = -300.;
 const TOP_WALL: f32 = 300.;
 
-const BRICK_SIZE: Vec2 = Vec2::new(100., 30.);
+const BRICK_SIZE: Vec2 = Vec2::new(80., 15.);
 // These values are exact
 const GAP_BETWEEN_PADDLE_AND_BRICKS: f32 = 270.0;
-const GAP_BETWEEN_BRICKS: f32 = 5.0;
+const GAP_BETWEEN_BRICKS: f32 = 40.0;
 // These values are lower bounds, as the number of bricks is computed
 const GAP_BETWEEN_BRICKS_AND_CEILING: f32 = 20.0;
 const GAP_BETWEEN_BRICKS_AND_SIDES: f32 = 20.0;
@@ -45,7 +45,7 @@ const SCOREBOARD_TEXT_PADDING: Val = Val::Px(5.0);
 
 const BACKGROUND_COLOR: Color = Color::rgb(0.9, 0.9, 0.9);
 const PADDLE_COLOR: Color = Color::rgb(0.3, 0.3, 0.7);
-const BALL_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
+const BALL_COLOR: Color = Color::rgb(0.8, 0.7, 0.6);
 const BRICK_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
 const WALL_COLOR: Color = Color::rgb(0.8, 0.8, 0.8);
 const TEXT_COLOR: Color = Color::rgb(0.5, 0.5, 1.0);
@@ -53,6 +53,10 @@ const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 
 fn main() {
     App::new()
+        // .insert_resource(AmbientLight {
+        //     color: Color::WHITE,
+        //     brightness: 1.0 / 5.0f32,
+        // })
         .add_plugins(DefaultPlugins)
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(ClearColor(BACKGROUND_COLOR))
@@ -61,10 +65,13 @@ fn main() {
         .add_system_set(
             SystemSet::new()
                 .with_run_criteria(FixedTimestep::step(TIME_STEP as f64))
-                .with_system(check_for_collisions)
-                .with_system(move_paddle.before(check_for_collisions))
-                .with_system(apply_velocity.before(check_for_collisions))
-                .with_system(play_collision_sound.after(check_for_collisions)),
+                .with_system(camera_movement)
+                //.with_system(animate_light_direction)
+        
+                // .with_system(check_for_collisions)
+                // .with_system(move_paddle.before(check_for_collisions))
+                // .with_system(apply_velocity.before(check_for_collisions))
+                // .with_system(play_collision_sound.after(check_for_collisions)),
         )
         .add_system(update_scoreboard)
         .add_system(bevy::window::close_on_esc)
@@ -174,14 +181,53 @@ struct Scoreboard {
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     asset_server: Res<AssetServer>,
 ) {
+    use std::f32::consts::PI;
+
+    let camera_position = Vec3::new(-300.0, 100.5, 750.0);
+
+    // light
+    commands.spawn(PointLightBundle {
+        point_light: PointLight {
+            intensity: 1500.0,
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: Transform::from_xyz(-300.0, 200.5, 750.0),
+        ..default()
+    });
+
+    const HALF_SIZE: f32 = 10.0;
+    let mut transform = Transform {
+        translation: (camera_position + Vec3::new(0.0, 200.0, 0.0)),
+        rotation: Quat::from_rotation_x(-PI / 4.),
+        ..default()
+    };
+    transform.look_at(Vec3::ZERO, Vec3::Y);
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
+            // Configure the projection to better fit the scene
+            shadow_projection: OrthographicProjection {
+                left: -HALF_SIZE,
+                right: HALF_SIZE,
+                bottom: -HALF_SIZE,
+                top: HALF_SIZE,
+                near: -10.0 * HALF_SIZE,
+                far: 10.0 * HALF_SIZE,
+                ..default()
+            },
+            shadows_enabled: true,
+            ..default()
+        },
+        transform: transform,
+        ..default()
+    });
+
     // Camera
-    commands.spawn(Camera2dBundle::default());
-    
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
+        transform: Transform::from_translation(camera_position).looking_at(Vec3::ZERO, Vec3::Y),
         ..default()
     });
     // Sound
@@ -191,15 +237,30 @@ fn setup(
     // Paddle
     let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
 
+    // commands.spawn((
+    //     SpriteBundle {
+    //         transform: Transform {
+    //             translation: Vec3::new(0.0, paddle_y, 0.0),
+    //             scale: PADDLE_SIZE,
+    //             ..default()
+    //         },
+    //         sprite: Sprite {
+    //             color: PADDLE_COLOR,
+    //             ..default()
+    //         },
+    //         ..default()
+    //     },
+    //     Paddle,
+    //     Collider,
+    // ));
+
     commands.spawn((
-        SpriteBundle {
+        PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Plane { size: 1.0 })),
+            material: materials.add(Color::rgb(0.8, 0.23, 0.23).into()),
             transform: Transform {
                 translation: Vec3::new(0.0, paddle_y, 0.0),
                 scale: PADDLE_SIZE,
-                ..default()
-            },
-            sprite: Sprite {
-                color: PADDLE_COLOR,
                 ..default()
             },
             ..default()
@@ -208,12 +269,41 @@ fn setup(
         Collider,
     ));
 
+    // // plane
+    // commands.spawn(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Plane { size: 50.0 })),
+    //     material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+    //     ..default()
+    // });
+    
     // Ball
+    // commands.spawn((
+    //     MaterialMesh2dBundle {
+    //         mesh: meshes.add(shape::Circle::default().into()).into(),
+    //         material: materials.add(ColorMaterial::from(BALL_COLOR)),
+    //         transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(BALL_SIZE),
+    //         ..default()
+    //     },
+    //     Ball,
+    //     Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
+    // ));
+
     commands.spawn((
-        MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::default().into()).into(),
-            material: materials.add(ColorMaterial::from(BALL_COLOR)),
-            transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(BALL_SIZE),
+        PbrBundle {
+            mesh: meshes.add(shape::Icosphere {
+                radius: 30.0,
+                subdivisions: 32,
+            }.into()).into(),
+            // material: materials.add(BALL_COLOR.into()),
+            material: materials.add(StandardMaterial {
+                // base_color: Color::hex("ffd891").unwrap(),
+                base_color: BALL_COLOR.into(),
+                // vary key PBR parameters on a grid of spheres to show the effect
+                metallic: 0.5,
+                perceptual_roughness: 0.5,
+                ..default()
+            }),
+            transform: Transform::from_translation(BALL_STARTING_POSITION),
             ..default()
         },
         Ball,
@@ -285,6 +375,9 @@ fn setup(
     // not its bottom-left corner
     let offset_x = left_edge_of_bricks + BRICK_SIZE.x / 2.;
     let offset_y = bottom_edge_of_bricks + BRICK_SIZE.y / 2.;
+    
+    let gap_offset_x = left_edge_of_bricks + BRICK_SIZE.x + GAP_BETWEEN_BRICKS / 2.;
+    let gap_offset_y = offset_y;
 
     for row in 0..n_rows {
         for column in 0..n_columns {
@@ -292,17 +385,17 @@ fn setup(
                 offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS),
                 offset_y + row as f32 * (BRICK_SIZE.y + GAP_BETWEEN_BRICKS),
             );
+            let gap_position = Vec2::new(
+                gap_offset_x + column as f32 * (BRICK_SIZE.x + GAP_BETWEEN_BRICKS),
+                gap_offset_y + row as f32 * (BRICK_SIZE.y + GAP_BETWEEN_BRICKS),
+            );
 
-            // brick
             commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: BRICK_COLOR,
-                        ..default()
-                    },
+                PbrBundle {
+                    mesh: meshes.add(shape::Box::new(BRICK_SIZE.x, BRICK_SIZE.y, 4.0).into()).into(),
+                    material: materials.add(BRICK_COLOR.into()),
                     transform: Transform {
                         translation: brick_position.extend(0.0),
-                        scale: Vec3::new(BRICK_SIZE.x, BRICK_SIZE.y, 1.0),
                         ..default()
                     },
                     ..default()
@@ -310,6 +403,23 @@ fn setup(
                 Brick,
                 Collider,
             ));
+
+            // gap indicator
+            // commands.spawn((
+            //     PbrBundle {
+            //         mesh: meshes.add(shape::Box::new(GAP_BETWEEN_BRICKS, BRICK_SIZE.y, 20.0).into()).into(),
+            //         material: materials.add(Color::rgb(0.878,0.066,0.3725).into()),
+            //         transform: Transform {
+            //             translation: gap_position.extend(0.0),
+            //             ..default()
+            //         },
+            //         ..default()
+            //     },
+            //     Brick,
+            //     Collider,
+            // ));
+
+        
         }
     }
 }
@@ -418,4 +528,44 @@ fn play_collision_sound(
         collision_events.clear();
         audio.play(sound.0.clone());
     }
+}
+
+fn animate_light_direction(
+    time: Res<Time>,
+    mut query: Query<&mut Transform, With<DirectionalLight>>,
+) {
+    for mut transform in &mut query {
+        transform.rotate_y(time.delta_seconds() * 0.5);
+
+        transform.look_at(Vec3::ZERO, Vec3::Y);
+    }
+}
+
+fn camera_movement(
+    input: Res<Input<KeyCode>>,
+    time: Res<Time>,
+    mut query: Query<&mut Transform, With<Camera>>,
+) {
+    let mut transform = query.single_mut();
+    
+    let mut direction = Vec3::ZERO;
+    if input.pressed(KeyCode::W) {
+        direction.y += 1.0;
+    }
+    if input.pressed(KeyCode::S) {
+        direction.y -= 1.0;
+    }
+    if input.pressed(KeyCode::A) {
+        direction.x -= 1.0;
+    }
+    if input.pressed(KeyCode::D) {
+        direction.x += 1.0;
+    }
+
+    direction *= 30.0;
+
+    transform.translation += time.delta_seconds() * 2.0 * direction;
+
+    transform.look_at(Vec3::ZERO, Vec3::Y);
+    
 }
