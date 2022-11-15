@@ -12,7 +12,7 @@ const TIME_STEP: f32 = 1.0 / 60.0;
 
 // These constants are defined in `Transform` units.
 // Using the default 2D camera they correspond 1:1 with screen pixels.
-const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 0.0);
+const PADDLE_SIZE: Vec3 = Vec3::new(120.0, 20.0, 8.0);
 const GAP_BETWEEN_PADDLE_AND_FLOOR: f32 = 60.0;
 const PADDLE_SPEED: f32 = 500.0;
 // How close can the paddle get to the wall
@@ -20,7 +20,7 @@ const PADDLE_PADDING: f32 = 10.0;
 
 // We set the z-value of the ball to 1 so it renders on top in the case of overlapping sprites.
 const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 1.0);
-const BALL_SIZE: Vec3 = Vec3::new(30.0, 30.0, 0.0);
+const BALL_SIZE: f32 = 15.0;
 const BALL_SPEED: f32 = 400.0;
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 
@@ -53,10 +53,10 @@ const SCORE_COLOR: Color = Color::rgb(1.0, 0.5, 0.5);
 
 fn main() {
     App::new()
-        // .insert_resource(AmbientLight {
-        //     color: Color::WHITE,
-        //     brightness: 1.0 / 5.0f32,
-        // })
+        .insert_resource(AmbientLight {
+            color: Color::WHITE,
+            brightness: 1.0 / 5.0f32,
+        })
         .add_plugins(DefaultPlugins)
         .insert_resource(Scoreboard { score: 0 })
         .insert_resource(ClearColor(BACKGROUND_COLOR))
@@ -237,30 +237,12 @@ fn setup(
     // Paddle
     let paddle_y = BOTTOM_WALL + GAP_BETWEEN_PADDLE_AND_FLOOR;
 
-    // commands.spawn((
-    //     SpriteBundle {
-    //         transform: Transform {
-    //             translation: Vec3::new(0.0, paddle_y, 0.0),
-    //             scale: PADDLE_SIZE,
-    //             ..default()
-    //         },
-    //         sprite: Sprite {
-    //             color: PADDLE_COLOR,
-    //             ..default()
-    //         },
-    //         ..default()
-    //     },
-    //     Paddle,
-    //     Collider,
-    // ));
-
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Plane { size: 1.0 })),
+            mesh: meshes.add(shape::Box::new(PADDLE_SIZE.x, PADDLE_SIZE.y, PADDLE_SIZE.z).into()).into(),
             material: materials.add(Color::rgb(0.8, 0.23, 0.23).into()),
             transform: Transform {
                 translation: Vec3::new(0.0, paddle_y, 0.0),
-                scale: PADDLE_SIZE,
                 ..default()
             },
             ..default()
@@ -277,21 +259,10 @@ fn setup(
     // });
     
     // Ball
-    // commands.spawn((
-    //     MaterialMesh2dBundle {
-    //         mesh: meshes.add(shape::Circle::default().into()).into(),
-    //         material: materials.add(ColorMaterial::from(BALL_COLOR)),
-    //         transform: Transform::from_translation(BALL_STARTING_POSITION).with_scale(BALL_SIZE),
-    //         ..default()
-    //     },
-    //     Ball,
-    //     Velocity(INITIAL_BALL_DIRECTION.normalize() * BALL_SPEED),
-    // ));
-
     commands.spawn((
         PbrBundle {
             mesh: meshes.add(shape::Icosphere {
-                radius: 30.0,
+                radius: BALL_SIZE,
                 subdivisions: 32,
             }.into()).into(),
             // material: materials.add(BALL_COLOR.into()),
@@ -419,7 +390,6 @@ fn setup(
             //     Collider,
             // ));
 
-        
         }
     }
 }
@@ -470,7 +440,9 @@ fn check_for_collisions(
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
     let (mut ball_velocity, ball_transform) = ball_query.single_mut();
-    let ball_size = ball_transform.scale.truncate();
+    
+    // TODO test changed from transform.scale to const BALL_SIZE
+    let ball_size = Vec2::new(BALL_SIZE, BALL_SIZE);
 
     // check collision with walls
     for (collider_entity, transform, maybe_brick) in &collider_query {
@@ -562,7 +534,7 @@ fn camera_movement(
         direction.x += 1.0;
     }
 
-    direction *= 30.0;
+    direction *= 70.0;
 
     transform.translation += time.delta_seconds() * 2.0 * direction;
 
