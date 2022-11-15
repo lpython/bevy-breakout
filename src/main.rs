@@ -25,10 +25,10 @@ const PADDLE_PADDING: f32 = 10.0;
 // We set the z-value of the ball to 1 so it renders on top in the case of overlapping sprites.
 const BALL_STARTING_POSITION: Vec3 = Vec3::new(0.0, -50.0, 0.0);
 const BALL_SIZE: f32 = 15.0;
-const BALL_SPEED: f32 = 400.0;
+const BALL_SPEED: f32 = 200.0;
 const INITIAL_BALL_DIRECTION: Vec2 = Vec2::new(0.5, -0.5);
 
-const WALL_THICKNESS: f32 = 10.0;
+const WALL_THICKNESS: f32 = 20.0;
 // x coordinates
 const LEFT_WALL: f32 = -450.;
 const RIGHT_WALL: f32 = 450.;
@@ -75,9 +75,7 @@ fn main() {
                 // .with_system(animate_light_direction)
         
                 .with_system(check_for_collisions)
-                // .with_system(move_paddle)
                 .with_system(move_paddle.before(check_for_collisions))
-                // .with_system(apply_velocity)
                 .with_system(apply_velocity.before(check_for_collisions))
                 // .with_system(play_collision_sound.after(check_for_collisions)),
         )
@@ -96,7 +94,7 @@ struct Ball;
 struct Velocity(Vec2);
 
 #[derive(Component)]
-struct Collider;
+struct Collider(Vec2);
 
 #[derive(Default)]
 struct CollisionEvent;
@@ -184,7 +182,7 @@ fn setup(
             ..default()
         },
         Paddle,
-        Collider,
+        Collider(Vec2::new(PADDLE_SIZE.x, PADDLE_SIZE.y)),
     ));
 
     // // plane
@@ -308,7 +306,7 @@ fn setup(
                     ..default()
                 },
                 Brick,
-                Collider,
+                Collider(Vec2::new(BRICK_SIZE.x, BRICK_SIZE.y)),
             ));
 
             // gap indicator
@@ -372,7 +370,7 @@ fn check_for_collisions(
     mut commands: Commands,
     mut scoreboard: ResMut<Scoreboard>,
     mut ball_query: Query<(&mut Velocity, &Transform), With<Ball>>,
-    collider_query: Query<(Entity, &Transform, Option<&Brick>), With<Collider>>,
+    collider_query: Query<(Entity, &Transform, &Collider, Option<&Brick>)>,
     mut collision_events: EventWriter<CollisionEvent>,
 ) {
     let (mut ball_velocity, ball_transform) = ball_query.single_mut();
@@ -381,12 +379,12 @@ fn check_for_collisions(
     let ball_size = Vec2::new(BALL_SIZE, BALL_SIZE);
 
     // check collision with walls
-    for (collider_entity, transform, maybe_brick) in &collider_query {
+    for (collider_entity, transform, collider, maybe_brick) in &collider_query {
         let collision = collide(
             ball_transform.translation,
             ball_size,
             transform.translation,
-            transform.,
+            collider.0,
         );
         if let Some(collision) = collision {
             // Sends a collision event so that other systems can react to the collision

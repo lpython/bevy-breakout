@@ -56,13 +56,22 @@ pub(crate) fn wall_setup(
                             v2.extend(0.0)
                         ],
                     })),
-                    // transform: Transform::from_xyz(-1.5, 0.0, 0.0),
+                    transform: Transform {
+                        //                     // We need to convert our Vec2 into a Vec3, by giving it a z-coordinate
+                        //                     // This is used to determine the order of our sprites
+                        translation: loc.position().extend(0.0),
+                        //                     // The z-scale of 2D objects must always be 1.0,
+                        //                     // or their ordering will be affected in surprising ways.
+                        //                     // See https://github.com/bevyengine/bevy/issues/4149
+                        scale: loc.size().extend(1.0),
+                        ..default()
+                    },
                     material: materials.add(LineMaterial {
                         color: Color::GREEN,
                     }),
                     ..default()
                 },
-                collider: Collider
+                collider: Collider(loc.size())
             }
         );
     }
